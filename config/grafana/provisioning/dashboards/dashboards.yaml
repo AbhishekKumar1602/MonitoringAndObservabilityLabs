@@ -1,0 +1,15 @@
+apiVersion: 1
+
+providers:
+  - name: Observability Labs
+    orgId: 1
+    folder: Observability Labs
+    folderUid: observability-labs
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
+

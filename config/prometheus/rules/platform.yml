@@ -1,0 +1,47 @@
+groups:
+  - name: single-vm-platform-alerts
+    interval: 30s
+    rules:
+      - alert: HostHighCpu
+        expr: |
+          100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Host CPU utilization is above 90%"
+          description: "Sustained CPU utilization on {{ $labels.instance }} is {{ $value | printf \"%.1f\" }}%."
+
+      - alert: HostLowDiskSpace
+        expr: |
+          100 * node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}
+          / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"} < 10
+        for: 10m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Host filesystem has less than 10% free space"
+          description: "{{ $labels.mountpoint }} on {{ $labels.instance }} has {{ $value | printf \"%.1f\" }}% free."
+
+      - alert: OpenTelemetryCollectorDown
+        expr: up{job="otel-collector"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "OpenTelemetry Collector cannot be scraped"
+          description: "Collector internal telemetry has been unavailable for two minutes."
+
+      - alert: ObservabilityBackendDown
+        expr: up{job=~"loki|tempo|prometheus|alertmanager"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "An observability backend is down"
+          description: "The {{ $labels.job }} target {{ $labels.instance }} is unavailable."
+

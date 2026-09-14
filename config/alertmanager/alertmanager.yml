@@ -1,0 +1,35 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: lab-webhook
+  group_by: ["alertname", "service", "severity"]
+  group_wait: 15s
+  group_interval: 1m
+  repeat_interval: 4h
+  routes:
+    - receiver: platform-blackhole
+      matchers:
+        - alertname="OrdersApiDown"
+    - receiver: lab-webhook
+      matchers:
+        - severity=~"warning|critical"
+
+inhibit_rules:
+  - source_matchers:
+      - alertname="OrdersApiDown"
+      - severity="critical"
+    target_matchers:
+      - severity="warning"
+    equal: ["service"]
+
+receivers:
+  - name: lab-webhook
+    webhook_configs:
+      - url: http://app:8000/internal/alertmanager/webhook
+        send_resolved: true
+        max_alerts: 20
+
+  # App-down alerts remain visible in Alertmanager without creating a webhook
+  # dependency on the application that is already unavailable.
+  - name: platform-blackhole

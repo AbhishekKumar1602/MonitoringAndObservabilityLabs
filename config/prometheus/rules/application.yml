@@ -1,0 +1,78 @@
+groups:
+  - name: orders-api-recording
+    interval: 15s
+    rules:
+      - record: job:http_requests:rate5m
+        expr: sum by (job) (rate(obslab_http_requests_total[5m]))
+      - record: job:http_5xx_ratio:rate5m
+        expr: |
+          (
+            sum by (job) (rate(obslab_http_requests_total{status_code=~"5.."}[5m]))
+            or on (job)
+            0 * sum by (job) (rate(obslab_http_requests_total[5m]))
+          )
+          /
+          clamp_min(sum by (job) (rate(obslab_http_requests_total[5m])), 0.001)
+      - record: job:http_request_duration_seconds:p95_5m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (job, le) (rate(obslab_http_request_duration_seconds_bucket[5m]))
+          )
+
+  - name: orders-api-alerts
+    interval: 15s
+    rules:
+      - alert: OrdersApiDown
+        expr: up{job="orders-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          service: orders-api
+        annotations:
+          summary: "Orders API target is down"
+          description: "Prometheus has been unable to scrape {{ $labels.instance }} for more than one minute."
+          runbook_url: "https://example.invalid/runbooks/orders-api-down"
+
+      - alert: OrdersApiHighErrorRate
+        expr: job:http_5xx_ratio:rate5m{job="orders-api"} > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          team: application
+          service: orders-api
+        annotations:
+          summary: "Orders API 5xx ratio is above 5%"
+          description: "The five-minute 5xx ratio is {{ $value | humanizePercentage }}."
+
+      - alert: OrdersApiHighLatency
+        expr: job:http_request_duration_seconds:p95_5m{job="orders-api"} > 1
+        for: 2m
+        labels:
+          severity: warning
+          team: application
+          service: orders-api
+        annotations:
+          summary: "Orders API p95 latency is above one second"
+          description: "The five-minute p95 is {{ $value | humanizeDuration }}."
+
+      - alert: OrdersApiDatabaseErrors
+        expr: increase(obslab_database_operations_total{outcome="error"}[5m]) >= 3
+        labels:
+          severity: warning
+          team: database
+          service: orders-api
+        annotations:
+          summary: "Repeated database operation failures"
+          description: "At least three database operations failed in the last five minutes."
+
+      - alert: OrdersApiCacheErrors
+        expr: increase(obslab_cache_operations_total{outcome="error"}[5m]) >= 3
+        labels:
+          severity: warning
+          team: application
+          service: orders-api
+        annotations:
+          summary: "Repeated Redis cache failures"
+          description: "At least three Redis cache operations failed in the last five minutes."
